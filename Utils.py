@@ -6,19 +6,32 @@ from datetime import date, timedelta
 import gc
 
 def load_data():
-    # df_train = pd.read_feather('train_after1608_raw')
-    df_train = pd.read_csv('train.csv', usecols=[1, 2, 3, 4, 5], dtype={'onpromotion': bool},
+    # Carregar os dados de treinamento
+    df_train = pd.read_csv('train.csv', usecols=[1, 2, 3, 4, 5],
                            converters={'unit_sales': lambda u: np.log1p(float(u)) if float(u) > 0 else 0},
                            parse_dates=["date"])
+    df_train['onpromotion'] = df_train['onpromotion'].fillna(False).astype('boolean')
+    
+    # Carregar os dados de teste
     df_test = pd.read_csv("test.csv", usecols=[0, 1, 2, 3, 4], dtype={'onpromotion': bool},
                           parse_dates=["date"]).set_index(['store_nbr', 'item_nbr', 'date'])
 
-    # subset data
-    df_2017 = df_train.loc[df_train.date>=pd.datetime(2016,1,1)]
+    # Filtrar os dados a partir de 2016
+    df_2017 = df_train.loc[df_train.date >= pd.Timestamp(2016, 1, 1)]
 
-    # promo
+    # Adicionar registros de 25 de dezembro a partir de 2016
+    all_store_item_combos = df_2017[['store_nbr', 'item_nbr']].drop_duplicates()
+    dec_25_dates = pd.date_range(start='2016-12-25', end='2017-12-25', freq='A-DEC')
+    dec_25_records = pd.DataFrame([(store, item, date, 0, False) for store, item in all_store_item_combos.values for date in dec_25_dates],
+                                  columns=['store_nbr', 'item_nbr', 'date', 'unit_sales', 'onpromotion'])
+    df_2017 = pd.concat([df_2017, dec_25_records], ignore_index=True)
+    
+    # Remover duplicatas antes de criar o índice
+    df_2017 = df_2017.drop_duplicates(subset=['store_nbr', 'item_nbr', 'date'])
+
+    # Promoções
     promo_2017_train = df_2017.set_index(
-    ["store_nbr", "item_nbr", "date"])[["onpromotion"]].unstack(
+        ["store_nbr", "item_nbr", "date"])[["onpromotion"]].unstack(
         level=-1).fillna(False)
     promo_2017_train.columns = promo_2017_train.columns.get_level_values(1)
     promo_2017_test = df_test[["onpromotion"]].unstack(level=-1).fillna(False)
@@ -27,17 +40,25 @@ def load_data():
     promo_2017 = pd.concat([promo_2017_train, promo_2017_test], axis=1)
     del promo_2017_test, promo_2017_train
 
+    # Ajustar o índice e preencher valores nulos
     df_2017 = df_2017.set_index(
-    ["store_nbr", "item_nbr", "date"])[["unit_sales"]].unstack(
+        ["store_nbr", "item_nbr", "date"])[["unit_sales"]].unstack(
         level=-1).fillna(0)
     df_2017.columns = df_2017.columns.get_level_values(1)
 
-    # items
+    # Carregar itens e lojas
     items = pd.read_csv("items.csv").set_index("item_nbr")
     stores = pd.read_csv("stores.csv").set_index("store_nbr")
-    # items = items.reindex(df_2017.index.get_level_values(1))
 
     return df_2017, promo_2017, items, stores
+
+def add_dec_25_records(df):
+    all_store_item_combos = df[['store_nbr', 'item_nbr']].drop_duplicates()
+    dec_25_dates = pd.date_range(start='2013-12-25', end='2017-12-25', freq='A-DEC')
+    dec_25_records = pd.DataFrame([(store, item, date, 0, False) for store, item in all_store_item_combos.values for date in dec_25_dates],
+                                  columns=['store_nbr', 'item_nbr', 'date', 'unit_sales', 'onpromotion'])
+    df = pd.concat([df, dec_25_records], ignore_index=True)
+    return df
 
 def save_unstack(df, promo, filename):
     df_name, promo_name = 'df_' + filename + '_raw', 'promo_' + filename + '_raw'
