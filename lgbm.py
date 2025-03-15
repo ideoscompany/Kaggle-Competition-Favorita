@@ -6,9 +6,28 @@ import lightgbm as lgb
 import gc
 
 from Utils import *
+import bisect
 
-df_2017, promo_2017, items = load_unstack('1617')
+df_2017, promo_2017, items, stores = load_unstack('2017')
 
+# Verificar se 25/12/2016 existe no DataFrame
+date_to_check = pd.Timestamp('2016-12-25')
+if date_to_check in df_2017.columns:
+    print(f"✅ Data {date_to_check} está presente no DataFrame")
+    print(f"Número de valores não-zero: {(df_2017[date_to_check] > 0).sum()}")
+else:
+    print(f"❌ Data {date_to_check} NÃO está presente no DataFrame")
+    print("Colunas disponíveis próximas:")
+    # Mostrar algumas datas próximas
+    all_dates = sorted(df_2017.columns)
+    idx = bisect.bisect_left(all_dates, date_to_check)
+    print(all_dates[max(0, idx-3):min(len(all_dates), idx+3)])
+
+# Verificar o intervalo de datas disponíveis
+print(f"Primeira data disponível: {min(df_2017.columns)}")
+print(f"Última data disponível: {max(df_2017.columns)}")
+
+# Continuação do código...
 promo_2017 = promo_2017[df_2017[pd.date_range(date(2017,1,1), date(2017,8,15))].max(axis=1)>0]
 df_2017 = df_2017[df_2017[pd.date_range(date(2017,1,1), date(2017,8,15))].max(axis=1)>0]
 promo_2017 = promo_2017.astype('int')
@@ -23,6 +42,11 @@ promo_2017 = promo_2017.loc[promo_2017.index.get_level_values(1).isin(item_inter
 
 
 def get_timespan(df, dt, minus, periods, freq='D'):
+    # print(df)
+    # print(dt)
+    # print(minus)
+    # print(periods)
+    # print(freq)
     return df[pd.date_range(dt - timedelta(days=minus), periods=periods, freq=freq)]
 
 def prepare_dataset(t2017, is_train=True, one_hot=False):
@@ -113,6 +137,9 @@ n_range = 14
 for i in range(n_range):
     print(i, end='..')
     delta = timedelta(days=7 * i)
+    print(1, t2017)
+    print(2, delta)
+    print(3, t2017 - delta)
     X_tmp, y_tmp = prepare_dataset(t2017 - delta)
     X_l.append(X_tmp)
     y_l.append(y_tmp)
