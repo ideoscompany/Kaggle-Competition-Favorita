@@ -21,13 +21,16 @@ def load_data():
 
     # Adicionar registros de 25 de dezembro a partir de 2016
     all_store_item_combos = df_2017[['store_nbr', 'item_nbr']].drop_duplicates()
-    dec_25_dates = pd.date_range(start='2016-12-25', end='2017-12-25', freq='A-DEC')
+    # Use uma lista de datas específicas para 25 de dezembro
+    dec_25_dates = pd.to_datetime(['2016-12-25', '2017-12-25'])
     dec_25_records = pd.DataFrame([(store, item, date, 0, False) for store, item in all_store_item_combos.values for date in dec_25_dates],
-                                  columns=['store_nbr', 'item_nbr', 'date', 'unit_sales', 'onpromotion'])
+                                 columns=['store_nbr', 'item_nbr', 'date', 'unit_sales', 'onpromotion'])
+    print(dec_25_records.shape)
+    print(dec_25_records.head())
     df_2017 = pd.concat([df_2017, dec_25_records], ignore_index=True)
     
     # Remover duplicatas antes de criar o índice
-    df_2017 = df_2017.drop_duplicates(subset=['store_nbr', 'item_nbr', 'date'])
+    # df_2017 = df_2017.drop_duplicates(subset=['store_nbr', 'item_nbr', 'date'])
 
     # Promoções
     promo_2017_train = df_2017.set_index(
