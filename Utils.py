@@ -12,17 +12,26 @@ def load_data():
                            parse_dates=["date"])
     df_train['onpromotion'] = df_train['onpromotion'].fillna(False).astype('boolean')
     
+    # Normalizar formato das datas (remover horas, minutos, segundos)
+    df_train['date'] = pd.to_datetime(df_train['date'].dt.date)
+    
     # Carregar os dados de teste
     df_test = pd.read_csv("test.csv", usecols=[0, 1, 2, 3, 4], dtype={'onpromotion': bool},
-                          parse_dates=["date"]).set_index(['store_nbr', 'item_nbr', 'date'])
+                          parse_dates=["date"])
+    
+    # Normalizar formato das datas de teste
+    df_test['date'] = pd.to_datetime(df_test['date'].dt.date)
+    df_test = df_test.set_index(['store_nbr', 'item_nbr', 'date'])
 
     # Filtrar os dados a partir de 2016
     df_2017 = df_train.loc[df_train.date >= pd.Timestamp(2016, 1, 1)]
 
     # Adicionar registros de 25 de dezembro a partir de 2016
     all_store_item_combos = df_2017[['store_nbr', 'item_nbr']].drop_duplicates()
-    # Use uma lista de datas específicas para 25 de dezembro
-    dec_25_dates = pd.to_datetime(['2016-12-25', '2017-12-25'])
+    # Use uma lista de datas específicas para 25 de dezembro (sem hora)
+    dec_25_dates = pd.to_datetime(['2016-12-25', '2017-12-25']).date
+    dec_25_dates = pd.to_datetime(dec_25_dates)  # Converter de volta para timestamp
+    
     dec_25_records = pd.DataFrame([(store, item, date, 0, False) for store, item in all_store_item_combos.values for date in dec_25_dates],
                                  columns=['store_nbr', 'item_nbr', 'date', 'unit_sales', 'onpromotion'])
     print(dec_25_records.shape)
@@ -30,7 +39,7 @@ def load_data():
     df_2017 = pd.concat([df_2017, dec_25_records], ignore_index=True)
     
     # Remover duplicatas antes de criar o índice
-    # df_2017 = df_2017.drop_duplicates(subset=['store_nbr', 'item_nbr', 'date'])
+    df_2017 = df_2017.drop_duplicates(subset=['store_nbr', 'item_nbr', 'date'])
 
     # Promoções
     promo_2017_train = df_2017.set_index(
