@@ -99,3 +99,9 @@ ENV/
 
 # mypy
 .mypy_cache/
+holidays_events.csv
+items.csv
+oil.csv
+stores.csv
+test.csv
+train.csv
