@@ -42,14 +42,16 @@ promo_2017 = promo_2017.loc[promo_2017.index.get_level_values(1).isin(item_inter
 
 
 def get_timespan(df, dt, minus, periods, freq='D'):
-    # print(df)
-    # print(dt)
-    # print(minus)
-    # print(periods)
-    # print(freq)
+    # Converter para pandas.Timestamp se for datetime.date
+    if isinstance(dt, date):
+        dt = pd.Timestamp(dt)
     return df[pd.date_range(dt - timedelta(days=minus), periods=periods, freq=freq)]
 
 def prepare_dataset(t2017, is_train=True, one_hot=False):
+    # Converter para pandas.Timestamp se for datetime.date
+    if isinstance(t2017, date):
+        t2017 = pd.Timestamp(t2017)
+    
     X = pd.DataFrame({
         "day_1_2017": get_timespan(df_2017, t2017, 1, 1).values.ravel(),
         "day_2_2017": get_timespan(df_2017, t2017, 2, 1).values.ravel(),
@@ -97,7 +99,9 @@ def prepare_dataset(t2017, is_train=True, one_hot=False):
         X['mean_20_dow{}'.format(i)] = get_timespan(df_2017, t2017, 140-i, 20, freq='7D').mean(axis=1).values
         
     for i in range(16):
-        X["promo_{}".format(i)] = promo_2017[t2017 + timedelta(days=i)].values
+        # Converter para Timestamp antes de acessar
+        t_day = pd.Timestamp(t2017 + timedelta(days=i))
+        X["promo_{}".format(i)] = promo_2017[t_day].values
     
     if one_hot:
         family_dummy = pd.get_dummies(df_2017.join(items)['family'], prefix='family')
@@ -132,7 +136,7 @@ def prepare_dataset(t2017, is_train=True, one_hot=False):
 
 print("Preparing dataset...")
 X_l, y_l = [], []
-t2017 = date(2017, 7, 5)
+t2017 = pd.Timestamp('2017-07-05')  # Em vez de date(2017, 7, 5)
 n_range = 14
 for i in range(n_range):
     print(i, end='..')
@@ -140,15 +144,15 @@ for i in range(n_range):
     print(1, t2017)
     print(2, delta)
     print(3, t2017 - delta)
-    X_tmp, y_tmp = prepare_dataset(t2017 - delta)
+    X_tmp, y_tmp = prepare_dataset(pd.Timestamp(t2017 - delta))
     X_l.append(X_tmp)
     y_l.append(y_tmp)
     
 X_train = pd.concat(X_l, axis=0)
 y_train = np.concatenate(y_l, axis=0)
 del X_l, y_l
-X_val, y_val = prepare_dataset(date(2017, 7, 26))
-X_test = prepare_dataset(date(2017, 8, 16), is_train=False)
+X_val, y_val = prepare_dataset(pd.Timestamp(date(2017, 7, 26)))
+X_test = prepare_dataset(pd.Timestamp(date(2017, 8, 16)), is_train=False)
 
 params = {
     'num_leaves': 31,
