@@ -141,9 +141,6 @@ n_range = 14
 for i in range(n_range):
     print(i, end='..')
     delta = timedelta(days=7 * i)
-    print(1, t2017)
-    print(2, delta)
-    print(3, t2017 - delta)
     X_tmp, y_tmp = prepare_dataset(pd.Timestamp(t2017 - delta))
     X_l.append(X_tmp)
     y_l.append(y_tmp)
@@ -171,12 +168,11 @@ print("Training and predicting models...")
 MAX_ROUNDS = 700
 val_pred = []
 test_pred = []
-# best_rounds = []
+best_rounds = []
 cate_vars = ['family', 'perish', 'store_nbr', 'store_cluster', 'store_type']
 w = (X_val["perish"] * 0.25 + 1) / (X_val["perish"] * 0.25 + 1).mean()
 
 for i in range(16):
-
     print("Step %d" % (i+1))
 
     dtrain = lgb.Dataset(
@@ -189,7 +185,7 @@ for i in range(16):
         categorical_feature=cate_vars)
     bst = lgb.train(
         params, dtrain, num_boost_round=MAX_ROUNDS,
-        valid_sets=[dtrain, dval], verbose_eval=100)
+        valid_sets=[dtrain, dval], callbacks=[lgb.callback.log_evaluation(period=100)])
 
     print("\n".join(("%s: %.2f" % x) for x in sorted(
         zip(X_train.columns, bst.feature_importance("gain")),
@@ -198,7 +194,7 @@ for i in range(16):
 
     val_pred.append(bst.predict(X_val, num_iteration=bst.best_iteration or MAX_ROUNDS))
     test_pred.append(bst.predict(X_test, num_iteration=bst.best_iteration or MAX_ROUNDS))
-    gc.collect();
+    gc.collect()
 
 cal_score(y_val, np.array(val_pred).T)
 
