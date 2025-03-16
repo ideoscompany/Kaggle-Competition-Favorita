@@ -295,6 +295,7 @@ def prepare_dataset(t2017, is_train=True, one_hot=False):
 #    - Usado para gerar as previsões finais para submissão
 #
 # Após concatenação, os objetos intermediários (X_l, y_l) são removidos para liberar memória.
+
 print("Preparing dataset...")
 X_l, y_l = [], []
 t2017 = pd.Timestamp("2017-07-05")  # Em vez de date(2017, 7, 5)
@@ -330,22 +331,33 @@ del X_l, y_l
 X_val, y_val = prepare_dataset(pd.Timestamp(date(2017, 7, 26)))
 X_test = prepare_dataset(pd.Timestamp(date(2017, 8, 16)), is_train=False)
 
-# Configuração de hiperparâmetros do LightGBM
-# Este dicionário define os parâmetros que controlam o comportamento do algoritmo:
+# Inicialização de variáveis para treinamento de modelos
 #
-# - num_leaves: 31 - Controla a complexidade de cada árvore (mais folhas = mais complexo)
-# - objective: "regression" - Define o problema como regressão (prever valores contínuos)
-# - min_data_in_leaf: 300 - Evita overfitting ao exigir muitos exemplos por nó folha
-# - learning_rate: 0.05 - Taxa de aprendizado moderadamente conservadora para estabilidade
-# - feature_fraction: 0.8 - Usa 80% das features em cada árvore (similar ao Random Forest)
-# - bagging_fraction: 0.8 - Usa 80% dos dados em cada iteração (técnica de subamostragem)
-# - bagging_freq: 2 - Aplica bagging a cada 2 iterações
-# - metric: "l2" - Usa erro quadrático médio como métrica de avaliação
-# - max_bin: 128 - Controla a granularidade da discretização de variáveis contínuas
-# - num_threads: 8 - Utiliza 8 threads para processamento paralelo e aceleração
+# Este trecho configura os parâmetros e estruturas de dados necessários para o treinamento:
 #
-# Esta configuração equilibra precisão e generalização, sendo adequada para
-# conjuntos de dados grandes como o da competição Favorita.
+# - MAX_ROUNDS: 700 - Número máximo de iterações para treinamento do LightGBM
+#   (o early stopping poderá interromper antes caso detecte overfitting)
+#
+# - val_pred/test_pred/best_rounds: Listas vazias que armazenarão:
+#   * Previsões para o conjunto de validação (para avaliar o modelo)
+#   * Previsões para o conjunto de teste (para submissão)
+#   * Número ótimo de iterações para cada um dos 16 modelos (1 por dia)
+#
+# - cate_vars: Define as variáveis categóricas para tratamento especial pelo LightGBM
+#   (família do produto, perecibilidade, loja, cluster e tipo de loja)
+#
+# - w: Implementa uma ponderação que dá 25% mais importância aos produtos perecíveis
+#   durante o treinamento, normalizada pela média dos pesos para manter o equilíbrio.
+#   Esta estratégia reflete a importância comercial de prever corretamente os itens
+#   perecíveis, que geram maior prejuízo quando há erros de estoque.
+print("Training and predicting models...")
+MAX_ROUNDS = 700
+val_pred = []
+test_pred = []
+best_rounds = []
+cate_vars = ["family", "perish", "store_nbr", "store_cluster", "store_type"]
+w = (X_val["perish"] * 0.25 + 1) / (X_val["perish"] * 0.25 + 1).mean()
+
 params = {
     "num_leaves": 31,
     "objective": "regression",
@@ -358,14 +370,6 @@ params = {
     "max_bin": 128,
     "num_threads": 8,
 }
-
-print("Training and predicting models...")
-MAX_ROUNDS = 700
-val_pred = []
-test_pred = []
-best_rounds = []
-cate_vars = ["family", "perish", "store_nbr", "store_cluster", "store_type"]
-w = (X_val["perish"] * 0.25 + 1) / (X_val["perish"] * 0.25 + 1).mean()
 
 for i in range(16):
     print("Step %d" % (i + 1))
