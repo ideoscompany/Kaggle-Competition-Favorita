@@ -199,8 +199,8 @@ for i in range(16):
 # Calcular e exibir o R² e RMSE para o conjunto de validação
 val_pred = np.array(val_pred).T
 r2 = r2_score(y_val, val_pred)
-rmse = mean_squared_error(y_val, val_pred, squared=False)
 print(f"R² do conjunto de validação: {r2}")
+rmse = np.sqrt(mean_squared_error(y_val, val_pred))
 print(f"RMSE do conjunto de validação: {rmse}")
 
 cal_score(y_val, val_pred)
