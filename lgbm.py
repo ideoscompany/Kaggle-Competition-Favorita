@@ -1,7 +1,7 @@
 from datetime import date, timedelta
 import pandas as pd
 import numpy as np
-from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_squared_error, r2_score
 import lightgbm as lgb
 import gc
 
@@ -196,6 +196,13 @@ for i in range(16):
     test_pred.append(bst.predict(X_test, num_iteration=bst.best_iteration or MAX_ROUNDS))
     gc.collect()
 
-cal_score(y_val, np.array(val_pred).T)
+# Calcular e exibir o R² e RMSE para o conjunto de validação
+val_pred = np.array(val_pred).T
+r2 = r2_score(y_val, val_pred)
+rmse = mean_squared_error(y_val, val_pred, squared=False)
+print(f"R² do conjunto de validação: {r2}")
+print(f"RMSE do conjunto de validação: {rmse}")
 
-make_submission(df_2017, np.array(test_pred).T)
+cal_score(y_val, val_pred)
+
+make_submission(df_2017, np.array(test_pred).T, 'submission.csv')
