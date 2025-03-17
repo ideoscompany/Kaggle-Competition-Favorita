@@ -390,24 +390,36 @@ def cal_score(Ytrue, Yfit):
 
 # Create submission file
 def make_submission(df_index, test_pred, filename):
+    # Criar datas para o período de previsão
+    pred_dates = pd.date_range("2017-08-16", periods=16)
+    
+    # Criar o DataFrame com as previsões
+    try:
+        # Se test_pred for bidimensional (itens x datas)
+        df_preds = pd.DataFrame(test_pred, index=df_index, columns=pred_dates)
+    except ValueError:
+        # Se o formato não for compatível, tente reestruturar os dados
+        df_preds = pd.DataFrame(index=df_index)
+        for i, date in enumerate(pred_dates):
+            df_preds[date] = test_pred[:, i]
+    
+    # Empilhar o DataFrame para o formato longo
+    df_preds = df_preds.stack().to_frame("unit_sales")
+    df_preds.index.set_names(["store_nbr", "item_nbr", "date"], inplace=True)
+    
+    # Mesclar com os IDs dos dados de teste
     df_test = pd.read_csv(
         "test.csv",
         usecols=[0, 1, 2, 3, 4],
         dtype={"onpromotion": bool},
         parse_dates=["date"],
     ).set_index(["store_nbr", "item_nbr", "date"])
-    df_preds = (
-        pd.DataFrame(
-            test_pred, index=df_index, columns=pd.date_range("2017-08-16", periods=16)
-        )
-        .stack()
-        .to_frame("unit_sales")
-    )
-    df_preds.index.set_names(["store_nbr", "item_nbr", "date"], inplace=True)
-
+    
     submission = df_test[["id"]].join(df_preds, how="left").fillna(0)
+    
+    # Aplicar transformação inversa do log1p e limitar valores
     submission["unit_sales"] = np.clip(np.expm1(submission["unit_sales"]), 0, 1000)
+    
+    # Salvar o arquivo
     submission.to_csv(filename, float_format="%.4f", index=None)
-
-
-# Thank you for watching! :)
+    print(f"Arquivo de submissão '{filename}' criado com sucesso.")
