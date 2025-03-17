@@ -331,6 +331,35 @@ del X_l, y_l
 X_val, y_val = prepare_dataset(pd.Timestamp(date(2017, 7, 26)))
 X_test = prepare_dataset(pd.Timestamp(date(2017, 8, 16)), is_train=False)
 
+# Configuração de hiperparâmetros do LightGBM
+# Este dicionário define os parâmetros que controlam o comportamento do algoritmo:
+#
+# - num_leaves: 31 - Controla a complexidade de cada árvore (mais folhas = mais complexo)
+# - objective: "regression" - Define o problema como regressão (prever valores contínuos)
+# - min_data_in_leaf: 300 - Evita overfitting ao exigir muitos exemplos por nó folha
+# - learning_rate: 0.05 - Taxa de aprendizado moderadamente conservadora para estabilidade
+# - feature_fraction: 0.8 - Usa 80% das features em cada árvore (similar ao Random Forest)
+# - bagging_fraction: 0.8 - Usa 80% dos dados em cada iteração (técnica de subamostragem)
+# - bagging_freq: 2 - Aplica bagging a cada 2 iterações
+# - metric: "l2" - Usa erro quadrático médio como métrica de avaliação
+# - max_bin: 128 - Controla a granularidade da discretização de variáveis contínuas
+# - num_threads: 8 - Utiliza 8 threads para processamento paralelo e aceleração
+#
+# Esta configuração equilibra precisão e generalização, sendo adequada para
+# conjuntos de dados grandes como o da competição Favorita.
+params = {
+    "num_leaves": 31,
+    "objective": "regression",
+    "min_data_in_leaf": 300,
+    "learning_rate": 0.05,
+    "feature_fraction": 0.8,
+    "bagging_fraction": 0.8,
+    "bagging_freq": 2,
+    "metric": "l2",
+    "max_bin": 128,
+    "num_threads": 8,
+}
+
 # Inicialização de variáveis para treinamento de modelos
 #
 # Este trecho configura os parâmetros e estruturas de dados necessários para o treinamento:
@@ -358,19 +387,31 @@ best_rounds = []
 cate_vars = ["family", "perish", "store_nbr", "store_cluster", "store_type"]
 w = (X_val["perish"] * 0.25 + 1) / (X_val["perish"] * 0.25 + 1).mean()
 
-params = {
-    "num_leaves": 31,
-    "objective": "regression",
-    "min_data_in_leaf": 300,
-    "learning_rate": 0.05,
-    "feature_fraction": 0.8,
-    "bagging_fraction": 0.8,
-    "bagging_freq": 2,
-    "metric": "l2",
-    "max_bin": 128,
-    "num_threads": 8,
-}
-
+# Loop principal de treinamento - 16 modelos independentes, um para cada dia
+#
+# Este loop treina 16 modelos LightGBM distintos, um para cada dia do horizonte de previsão.
+# Em vez de tentar prever os 16 dias com um único modelo, essa abordagem permite que cada
+# modelo se especialize na previsão de um dia específico, capturando melhor os padrões
+# temporais únicos de cada posição no horizonte.
+#
+# Para cada dia (i de 0 a 15):
+# 1. Cria conjuntos de dados LightGBM:
+#    - dtrain: Conjunto de treinamento com o alvo sendo a coluna i de y_train
+#    - dval: Conjunto de validação, com pesos que priorizam itens perecíveis
+#
+# 2. Treina o modelo com os parâmetros definidos, monitorando tanto o desempenho
+#    no treinamento quanto na validação, e registrando o progresso a cada 100 iterações
+#
+# 3. Exibe as 15 features mais importantes (por ganho) para análise e interpretação
+#    do comportamento do modelo e entendimento dos fatores mais relevantes
+#
+# 4. Armazena o número ótimo de iterações (determinado por early stopping ou MAX_ROUNDS)
+#
+# 5. Gera e armazena previsões para os conjuntos de validação e teste usando o
+#    número ótimo de iterações determinado durante o treinamento
+#
+# 6. Força coleta de lixo (gc.collect()) para liberar memória antes da próxima iteração,
+#    essencial para evitar vazamentos de memória durante processamento de grandes volumes de dados
 for i in range(16):
     print("Step %d" % (i + 1))
 
@@ -410,7 +451,29 @@ for i in range(16):
     )
     gc.collect()
 
-# Calcular e exibir o R² e RMSE para o conjunto de validação
+# Avaliação da performance do modelo no conjunto de validação
+#
+# Este trecho calcula e exibe métricas de desempenho do modelo, fundamentais para avaliar
+# sua qualidade antes de aplicá-lo aos dados de teste:
+#
+# 1. Primeiro, transforma a lista de previsões em um array NumPy e o transpõe (operação .T)
+#    para que suas dimensões correspondam ao formato dos valores reais (y_val)
+#
+# 2. Calcula o coeficiente de determinação (R²), que representa a proporção da variância 
+#    nos dados que é explicada pelo modelo:
+#    - Valores próximos a 1 indicam que o modelo explica bem a variabilidade dos dados
+#    - Valores próximos a 0 indicam baixo poder preditivo
+#
+# 3. Calcula o RMSE (Root Mean Squared Error), que mede o erro médio de previsão 
+#    na mesma unidade dos dados originais:
+#    - Penaliza erros maiores devido ao quadrado das diferenças
+#    - Útil para entender a magnitude típica dos erros de previsão
+#
+# 4. Chama a função personalizada cal_score() para calcular métricas adicionais
+#    específicas para esta competição (possivelmente o NWRMSLE)
+#
+# Estas métricas proporcionam uma visão abrangente da capacidade preditiva do modelo
+# antes de gerar as previsões finais para submissão.
 val_pred = np.array(val_pred).T
 r2 = r2_score(y_val, val_pred)
 print(f"R² do conjunto de validação: {r2}")
